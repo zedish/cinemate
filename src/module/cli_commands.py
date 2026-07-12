@@ -34,6 +34,7 @@ class CommandExecutor(threading.Thread):
             # ── Record control ────────────────────────────────────────────────────
             'rec'                    : (cinepi_controller.rec,            None),   # toggle via edge
             'stop'                   : (cinepi_controller.rec,            None),   # same alias
+            'photo'                  : (cinepi_controller.take_photo,     [int, None]),   # 1 photo by default, or photo N
 
             # ── ISO ───────────────────────────────────────────────────────────────
             'set iso'                : (cinepi_controller.set_iso,        int),

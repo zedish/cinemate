@@ -162,6 +162,13 @@ def register_events(socketio, redis_controller, cinepi_controller, simple_gui, s
     @socketio.on('container_tap')
     def handle_container_tap():
         cinepi_controller.rec()
+
+    @socketio.on('take_photo')
+    def handle_take_photo(data=None):
+        count = 1
+        if data and 'count' in data:
+            count = int(data['count'])
+        cinepi_controller.take_photo(count)
         
     @socketio.on('gui_data_change')
     def handle_gui_data_change(data):

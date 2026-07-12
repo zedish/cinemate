@@ -111,6 +111,7 @@
     </div>
     <div class="bottom-bar">
         <button id="unmount-btn">Unmount</button>
+        <button id="photo-btn">Photo</button>
         <div><span id="disk-space"></span></div>
         <div>WRITE: <span id="write-speed"></span></div>
         <div>FRAMES BUFFERED: <span id="buffer-used"></span></div>
@@ -321,8 +322,19 @@
             socket.emit('unmount');
         });
 
+        document.getElementById('photo-btn').addEventListener('click', function() {
+            socket.emit('take_photo', {count: 1});
+        });
+
         document.getElementById('stream-container').addEventListener('click', function() {
             socket.emit('container_tap');
+        });
+
+        document.getElementById('stream-container').addEventListener('contextmenu', function(e) {
+            e.preventDefault();
+            const count = prompt('Number of photos (default 1):', '1');
+            const n = parseInt(count, 10);
+            socket.emit('take_photo', {count: n > 0 ? n : 1});
         });
 
         socket.on('reload_stream', () => {

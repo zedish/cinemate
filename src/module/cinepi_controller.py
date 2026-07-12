@@ -961,6 +961,11 @@ class CinePiController:
 
         logging.warning(f"Unknown recording mode '{mode}'. Expected 's' for seconds or 'f' for frames.")
 
+    def take_photo(self, count: int = 1) -> None:
+        """Record *count* DNG frames (default 1) and stop."""
+        logging.info("take_photo called – recording %d frame(s)", count)
+        self.rec("f", count)
+
     def set_preroll_active(self, active: bool) -> None:
         if active:
             self._preroll_active.set()
