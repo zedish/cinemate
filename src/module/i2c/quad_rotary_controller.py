@@ -3,14 +3,6 @@ import threading
 import time
 from typing import Dict, Any, TypedDict
 
-import board
-import busio
-import digitalio
-import adafruit_seesaw.seesaw
-import adafruit_seesaw.rotaryio
-import adafruit_seesaw.digitalio
-import adafruit_seesaw.neopixel
-
 
 class QuadRotarySettings(TypedDict, total=False):
     enabled: bool
@@ -153,15 +145,17 @@ class QuadRotaryController(threading.Thread):
 
     # ------------------------------------------------------------------
     def _initialize_device(self):
+        import board, busio, digitalio
+        from adafruit_seesaw import seesaw, rotaryio, digitalio as seesaw_digitalio, neopixel
         try:
             self.i2c = busio.I2C(board.SCL, board.SDA)
             time.sleep(0.1)
-            self.seesaw = adafruit_seesaw.seesaw.Seesaw(self.i2c, 0x49)
-            self.encoders = [adafruit_seesaw.rotaryio.IncrementalEncoder(self.seesaw, n) for n in range(4)]
-            self.switches = [adafruit_seesaw.digitalio.DigitalIO(self.seesaw, pin) for pin in (12, 14, 17, 9)]
+            self.seesaw = seesaw.Seesaw(self.i2c, 0x49)
+            self.encoders = [rotaryio.IncrementalEncoder(self.seesaw, n) for n in range(4)]
+            self.switches = [seesaw_digitalio.DigitalIO(self.seesaw, pin) for pin in (12, 14, 17, 9)]
             for sw in self.switches:
                 sw.switch_to_input(digitalio.Pull.UP)
-            self.pixels = adafruit_seesaw.neopixel.NeoPixel(self.seesaw, 18, 4)
+            self.pixels = neopixel.NeoPixel(self.seesaw, 18, 4)
             self.pixels.brightness = 0.5
             self.last_positions = [enc.position for enc in self.encoders]
             self.button_states = [not sw.value for sw in self.switches]

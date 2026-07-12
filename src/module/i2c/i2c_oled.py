@@ -2,7 +2,6 @@ import logging, os, threading, time
 from pathlib import Path
 from typing import TypedDict
 
-import board, busio, adafruit_ssd1306
 from PIL import Image, ImageDraw, ImageFont
 from module.utils import Utils           # keep your original helper
 
@@ -66,6 +65,7 @@ class I2cOled(threading.Thread):
     # Hardware init
     # ──────────────────────────────────────────────────────────────────────
     def _initialize_display(self):
+        import board, busio, adafruit_ssd1306
         try:
             self.i2c = busio.I2C(board.SCL, board.SDA)
             time.sleep(0.1)   # let the bus settle

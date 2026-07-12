@@ -18,19 +18,16 @@ from module.logger import configure_logging
 from module.redis_controller import RedisController, ParameterKey
 from module.ssd_monitor import SSDMonitor
 from module.usb_monitor import USBMonitor
-from module.gpio_output import GPIOOutput
 from module.cinepi_controller import CinePiController
 from module.simple_gui import SimpleGUI
 from module.sensor_detect import SensorDetect
 from module.redis_listener import RedisListener
-from module.gpio_input import ComponentInitializer
 from module.battery_monitor import BatteryMonitor
 from module.wifi_hotspot import WiFiHotspotManager
 from module.cli_commands import CommandExecutor
 from module.storage_preroll import StoragePreroll
 from module.dmesg_monitor import DmesgMonitor
 from module.app import create_app
-from module.analog_controls import AnalogControls
 from module.mediator import Mediator
 from module.serial_handler import SerialHandler
 from module.cinepi_multi import CinePiManager as CinePi
@@ -597,21 +594,27 @@ def initialize_system(settings, pi_model="unknown"):
     ssd_monitor = SSDMonitor(redis_controller=redis_controller)
     usb_monitor = USBMonitor(ssd_monitor, settings=settings)
 
-    gpio_cfg = settings["gpio_output"]
+    gpio_cfg = settings.get("gpio_output", {})
+    rec_out_pins = gpio_cfg.get("rec_out_pin", [])
     rec_tone_pins = gpio_cfg.get("rec_tone_pin")
-    if rec_tone_pins in (None, []):
-        # Backward compatibility: if no explicit rec_tone_pin is configured,
-        # fall back to pwm_pin for REC sync tone output.
+    # Only fall back to pwm_pin when rec_tone_pin is completely absent (None),
+    # not when the user explicitly set it to an empty list [].
+    if rec_tone_pins is None:
         rec_tone_pins = gpio_cfg.get("pwm_pin")
 
-    gpio_output = GPIOOutput(
-        rec_out_pins=gpio_cfg["rec_out_pin"],
-        rec_tone_pins=rec_tone_pins,
-        rec_tone_frequency_hz=gpio_cfg.get("rec_tone_frequency_hz", 1000),
-        rec_tone_duty_cycle=gpio_cfg.get("rec_tone_duty_cycle", 50),
-        rec_tone_relay_drop_frames=gpio_cfg.get("rec_tone_relay_drop_frames", False),
-        pi_model=pi_model,
-    )
+    # Only create GPIOOutput if at least one output pin is configured.
+    has_output_pins = bool(rec_out_pins) or bool(rec_tone_pins)
+    gpio_output = None
+    if has_output_pins:
+        from module.gpio_output import GPIOOutput
+        gpio_output = GPIOOutput(
+            rec_out_pins=rec_out_pins if isinstance(rec_out_pins, list) else [rec_out_pins],
+            rec_tone_pins=rec_tone_pins,
+            rec_tone_frequency_hz=gpio_cfg.get("rec_tone_frequency_hz", 1000),
+            rec_tone_duty_cycle=gpio_cfg.get("rec_tone_duty_cycle", 50),
+            rec_tone_relay_drop_frames=gpio_cfg.get("rec_tone_relay_drop_frames", False),
+            pi_model=pi_model,
+        )
     dmesg_monitor = DmesgMonitor()
     dmesg_monitor.start()
 
@@ -739,23 +742,33 @@ def run_application(args, log_queue):
         auto_enabled=auto_storage_preroll_enabled(settings),
     )
 
-    gpio_cfg = settings.get("gpio_output", {})
-    rec_tone_pins = gpio_cfg.get("rec_tone_pin")
-    if rec_tone_pins in (None, []):
-        rec_tone_pins = gpio_cfg.get("pwm_pin")
-
-    reserved_output_pins = set(gpio_cfg.get("rec_out_pin", []))
-    if rec_tone_pins is not None:
-        if isinstance(rec_tone_pins, int):
-            reserved_output_pins.add(rec_tone_pins)
-        else:
-            reserved_output_pins.update(int(pin) for pin in rec_tone_pins)
-
-    gpio_input = ComponentInitializer(
-        cinepi_controller,
-        settings,
-        reserved_output_pins=reserved_output_pins,
+    # Only initialize GPIO inputs if at least one input is configured.
+    has_gpio_input = bool(
+        settings.get("buttons")
+        or settings.get("two_way_switches")
+        or settings.get("three_way_switches")
+        or settings.get("rotary_encoders")
     )
+    gpio_input = None
+    if has_gpio_input or gpio_output is not None:
+        gpio_cfg = settings.get("gpio_output", {})
+        rec_tone_pins = gpio_cfg.get("rec_tone_pin")
+        if rec_tone_pins is None:
+            rec_tone_pins = gpio_cfg.get("pwm_pin")
+
+        reserved_output_pins = set(gpio_cfg.get("rec_out_pin", []))
+        if rec_tone_pins is not None:
+            if isinstance(rec_tone_pins, int):
+                reserved_output_pins.add(rec_tone_pins)
+            else:
+                reserved_output_pins.update(int(pin) for pin in rec_tone_pins)
+
+        from module.gpio_input import ComponentInitializer
+        gpio_input = ComponentInitializer(
+            cinepi_controller,
+            settings,
+            reserved_output_pins=reserved_output_pins,
+        )
 
     # Create CommandExecutor (for both CLI and Serial)
     command_executor = CommandExecutor(
@@ -788,7 +801,10 @@ def run_application(args, log_queue):
     # Initialize USB monitoring
     usb_monitor.check_initial_devices()
 
-    # Setup Analog Controls
+    # Setup Analog Controls (lazy import — Grove HAT library only loaded when
+    # at least one potentiometer is configured; if all pots are "None" the
+    # constructor returns early without touching I2C or GPIO).
+    from module.analog_controls import AnalogControls
     analog_controls = AnalogControls(
         cinepi_controller, redis_controller,
         settings["analog_controls"]["iso_pot"],

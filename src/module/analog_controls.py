@@ -1,6 +1,5 @@
 import threading
 import time
-from module.grove_base_hat_adc import ADC
 import smbus2
 import logging
 import traceback
@@ -15,13 +14,21 @@ class AnalogControls(threading.Thread):
         self.cinepi_controller = cinepi_controller
         self.redis_controller = redis_controller
 
-        self.adc = ADC()
-
         self.iso_pot = self.convert_to_int_or_none(iso_pot)
         self.shutter_a_pot = self.convert_to_int_or_none(shutter_a_pot)
         self.fps_pot = self.convert_to_int_or_none(fps_pot)
         self.wb_pot = self.convert_to_int_or_none(wb_pot)
-        
+
+        has_any_pot = any(p is not None for p in (self.iso_pot, self.shutter_a_pot, self.fps_pot, self.wb_pot))
+        if not has_any_pot:
+            self.adc = None
+            self.grove_base_hat_connected = False
+            return
+
+        # Lazy import to avoid probing GPIO/I2C hardware when unused
+        from module.grove_base_hat_adc import ADC
+        self.adc = ADC()
+
         self.iso_steps = iso_steps or []
         self.shutter_a_steps = shutter_a_steps or []
         self.fps_steps = fps_steps or []

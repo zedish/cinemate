@@ -154,19 +154,27 @@ def storage_preroll_enabled(settings: dict) -> bool:
 
 
 def _apply_settings_defaults(settings: dict) -> dict:
-    # Top-level placeholders.
-    gpio_defaults = {
-        "pwm_pin": 19,
-        "rec_out_pin": [6, 21],
-        "rec_tone_pin": [],
-        "rec_tone_frequency_hz": 1000,
-        "rec_tone_duty_cycle": 50,
-        "rec_tone_relay_drop_frames": False,
-    }
-    gpio_cfg = settings.setdefault("gpio_output", {})
-    for k, v in gpio_defaults.items():
-        gpio_cfg.setdefault(k, v)
-    settings["gpio_output"] = gpio_cfg
+    # Only apply GPIO defaults if the user has explicitly configured at least
+    # one output pin.  If gpio_output is absent or every pin list is empty,
+    # GPIO stays unconfigured so the Pi won't touch the GPIO chip at all.
+    if "gpio_output" in settings:
+        gpio_cfg = settings["gpio_output"]
+        has_any_pin = bool(
+            gpio_cfg.get("rec_out_pin")
+            or gpio_cfg.get("rec_tone_pin")
+            or gpio_cfg.get("pwm_pin")
+        )
+        if has_any_pin:
+            gpio_defaults = {
+                "pwm_pin": 19,
+                "rec_out_pin": [6, 21],
+                "rec_tone_pin": [],
+                "rec_tone_frequency_hz": 1000,
+                "rec_tone_duty_cycle": 50,
+                "rec_tone_relay_drop_frames": False,
+            }
+            for k, v in gpio_defaults.items():
+                gpio_cfg.setdefault(k, v)
     settings.setdefault("arrays", {})
     settings_cfg = settings.setdefault("settings", {})
     auto_storage_preroll = auto_storage_preroll_enabled(settings)

@@ -25,7 +25,13 @@ def index():
         "background_color": background_color_value if background_color_value else "Initializing...",
     }
 
-    return render_template('template.html', stream_url="http://cinepi.local:8000/stream", 
+    # Derive the stream URL from the request's own host so it works whether
+    # the user reaches the UI via hostname (cinepi.local), IP, or any other
+    # address — the stream is always on port 8000 of the same machine.
+    host = request.host.split(":")[0]
+    stream_url = f"http://{host}:8000/stream"
+
+    return render_template('template.html', stream_url=stream_url, 
                            dynamic_data=dynamic_data,
                            iso_values=cinepi_controller.iso_steps, 
                            shutter_speed_values=cinepi_controller.shutter_a_steps_dynamic,

@@ -8,7 +8,6 @@ from module.framebuffer import Framebuffer, acquire_framebuffer
 from module.config_loader import load_settings
 import subprocess
 import logging
-from sugarpie import pisugar
 from flask_socketio import SocketIO
 import re
 from statistics import mean
