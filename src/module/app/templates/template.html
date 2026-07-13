@@ -112,6 +112,7 @@
     <div class="bottom-bar">
         <button id="unmount-btn">Unmount</button>
         <button id="photo-btn">Photo</button>
+        <button id="fullres-btn">Full Res</button>
         <div><span id="disk-space"></span></div>
         <div>WRITE: <span id="write-speed"></span></div>
         <div>FRAMES BUFFERED: <span id="buffer-used"></span></div>
@@ -324,6 +325,19 @@
 
         document.getElementById('photo-btn').addEventListener('click', function() {
             socket.emit('take_photo', {count: 1});
+        });
+
+        document.getElementById('fullres-btn').addEventListener('click', function() {
+            socket.emit('take_full_res_photo', {count: 1});
+        });
+
+        document.getElementById('stream-container').addEventListener('auxclick', function(e) {
+            if (e.button === 1) {
+                e.preventDefault();
+                const count = prompt('Number of full-res photos (default 1):', '1');
+                const n = parseInt(count, 10);
+                socket.emit('take_full_res_photo', {count: n > 0 ? n : 1});
+            }
         });
 
         document.getElementById('stream-container').addEventListener('click', function() {

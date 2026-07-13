@@ -966,6 +966,54 @@ class CinePiController:
         logging.info("take_photo called – recording %d frame(s)", count)
         self.rec("f", count)
 
+    def take_full_res_photo(self, count: int = 1) -> None:
+        """Switch to the sensor's maximum resolution, take *count* frames, restore.
+
+        Uses on-the-fly record-through reconfiguration (same aspect ratio, no
+        cinepi-raw restart) so the preview stream stays up during the switch.
+        Only works when not already recording.
+        """
+        import time
+
+        if self._is_recording():
+            logging.warning("take_full_res_photo ignored – recording in progress")
+            return
+
+        saved_mode = self.sensor_mode
+        max_mode = 0  # mode 0 is always the highest resolution
+
+        needs_switch = (
+            saved_mode != max_mode
+            and max_mode in self.sensor_detect.res_modes
+        )
+
+        if needs_switch:
+            aspect_change = self._resolution_change_needs_restart(max_mode)
+            if aspect_change:
+                logging.info(
+                    "take_full_res_photo: switching to max res mode %d "
+                    "(aspect differs, cinepi-raw will restart)",
+                    max_mode,
+                )
+            if not self.set_resolution(max_mode, restart_process=False):
+                logging.error("take_full_res_photo: failed to switch to mode %d", max_mode)
+                return
+            logging.info("take_full_res_photo: now in mode %d (was %d)", self.sensor_mode, saved_mode)
+
+        self.rec("f", count)
+
+        if needs_switch:
+            if self._is_recording():
+                logging.warning("take_full_res_photo: recording still active after photo, skipping mode restore")
+                return
+            # let any post-recording buffer flush settle before restoring
+            time.sleep(0.25)
+            logging.info("take_full_res_photo: restoring mode %d", saved_mode)
+            if not self.set_resolution(saved_mode, restart_process=False):
+                logging.warning("take_full_res_photo: failed to restore mode %d", saved_mode)
+            else:
+                logging.info("take_full_res_photo: restored to mode %d", self.sensor_mode)
+
     def set_preroll_active(self, active: bool) -> None:
         if active:
             self._preroll_active.set()

@@ -169,7 +169,14 @@ def register_events(socketio, redis_controller, cinepi_controller, simple_gui, s
         if data and 'count' in data:
             count = int(data['count'])
         cinepi_controller.take_photo(count)
-        
+
+    @socketio.on('take_full_res_photo')
+    def handle_take_full_res_photo(data=None):
+        count = 1
+        if data and 'count' in data:
+            count = int(data['count'])
+        cinepi_controller.take_full_res_photo(count)
+
     @socketio.on('gui_data_change')
     def handle_gui_data_change(data):
         emit('gui_data_change', data)

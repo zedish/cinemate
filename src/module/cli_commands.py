@@ -35,6 +35,7 @@ class CommandExecutor(threading.Thread):
             'rec'                    : (cinepi_controller.rec,            None),   # toggle via edge
             'stop'                   : (cinepi_controller.rec,            None),   # same alias
             'photo'                  : (cinepi_controller.take_photo,     [int, None]),   # 1 photo by default, or photo N
+            'fullresphoto'           : (cinepi_controller.take_full_res_photo, [int, None]),   # photo at max sensor resolution
 
             # ── ISO ───────────────────────────────────────────────────────────────
             'set iso'                : (cinepi_controller.set_iso,        int),
