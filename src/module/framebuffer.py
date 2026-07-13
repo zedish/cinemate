@@ -59,6 +59,16 @@ def _converter_no_change(image: Image):
     return image.tobytes()
 
 
+def _converter_rgba_xrgb8888(image: Image):
+    """Convert RGBA PIL image to XRGB8888 (byte order B, G, R, X)."""
+    flat = numpy.frombuffer(image.tobytes(), dtype=numpy.uint32)
+    r = flat & 0xff
+    g = flat & 0xff00
+    b = flat & 0xff0000
+    xrgb = (b >> 16) | g | (r << 16) | numpy.uint32(0xff000000)
+    return xrgb.astype(numpy.uint32).tobytes()
+
+
 def _converter_rgba_rgb(image: Image):
     return image.convert("RGB").tobytes()
 
@@ -69,7 +79,7 @@ _CONVERTER = {
     ("RGB", 16): _converter_rgb565,
     ("RGB", 24): _converter_no_change,
     ("RGB", 32): _converter_argb,
-    ("RGBA", 32): _converter_no_change,
+    ("RGBA", 32): _converter_rgba_xrgb8888,
     # note numpy does not work well with mode="1" images as
     # image.tobytes() loses pixel color info
     ("1", 16): _converter_1_rgb565,
@@ -164,11 +174,42 @@ def acquire_framebuffer(device_no: int):
     if not fb.usable:
         return None
 
-    connected = drm_hdmi_connected()
-    if connected is False:
-        return None
-
     return fb
+
+
+def acquire_any_framebuffer(max_devices: int = 3, preferred: int | None = None):
+    """Return a usable framebuffer.
+
+    If *preferred* is set (e.g. from a ``gui_display.fb_device``
+    setting), that device is tried first.  Otherwise connected displays
+    are preferred over disconnected HDMI.
+    """
+    order: list[int] = []
+    if preferred is not None:
+        order.append(preferred)
+
+    connected = None
+    try:
+        connected = drm_hdmi_connected()
+    except Exception:
+        pass
+
+    for dev in range(max_devices):
+        if dev != preferred:
+            # when HDMI has no cable, skip fb0 so a DPI display (fb1+) wins
+            if dev == 0 and connected is False:
+                continue
+            order.append(dev)
+
+    # if HDMI was skipped and nothing found, try fb0 as last resort
+    if 0 not in order and connected is False:
+        order.append(0)
+
+    for dev_no in order:
+        fb = acquire_framebuffer(dev_no)
+        if fb is not None:
+            return fb
+    return None
 
 # if __name__ == "__main__":
 #     import time

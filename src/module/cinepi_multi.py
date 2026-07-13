@@ -14,7 +14,7 @@ import shutil
 
 from module.config_loader import load_settings
 from module.redis_controller import ParameterKey
-from module.framebuffer import Framebuffer
+from module.framebuffer import Framebuffer, acquire_any_framebuffer
 from module.sensor_detect import is_pi4_family
 from module.storage_profiles import (
     DEFAULT_RECORDER_PROFILE,
@@ -57,9 +57,10 @@ def _rt_permitted():
         return False
 
 
-def _active_framebuffer_size(device_no: int = 0):
-    fb = Framebuffer(device_no)
-    if fb.usable:
+def _active_framebuffer_size():
+    preferred = _settings().get("gui_display", {}).get("fb_device")
+    fb = acquire_any_framebuffer(3, preferred=preferred)
+    if fb is not None:
         return fb.size
     return None
 
@@ -393,28 +394,6 @@ class CinePiProcess(Thread):
                 fh,
             )
             fw, fh = active_fb_size
-        
-        px, py = 94, 50
-        aw, ah = fw - 2*px, fh - 2*py
-        lh = min(720, ah)
-        lw = int(lh * aspect * anam)
-        if lw > aw:
-            lw, lh = aw, int(round(aw / (aspect * anam)))
-        self.redis_controller.set_value(ParameterKey.LORES_WIDTH.value, lw)
-        self.redis_controller.set_value(ParameterKey.LORES_HEIGHT.value, lh)
-        if (aw/ah) > aspect:
-            ph = ah; pw = int(ph * aspect)
-        else:
-            pw = aw; ph = int(pw / aspect)
-        
-        ox, oy = (fw-pw)//2, (fh-ph)//2
-
-        # Dual-sensor preview window = the full padded area. The compositor
-        # canvas aspect changes with the live source (one pane vs two), and DRM
-        # letterboxes it inside this rect: a single selected sensor fills the
-        # area just like the single-sensor setup, while `both` centres the wide
-        # side-by-side strip. Either way the simple_gui columns keep their room.
-        dox, doy, dpw, dph = px, py, aw, ah
 
         # gains, shutter
         cg_rb = self.redis_controller.get_value(ParameterKey.CG_RB.value) or '2.5,2.2'
@@ -446,14 +425,54 @@ class CinePiProcess(Thread):
         else:
             self.anamorphic_factor = float(self.anamorphic_factor)
         
-        # determine HDMI port: override from settings if provided.
+        # Determine output target: override from settings if provided.
         # In dual-sensor mode both feeds share the one on-camera monitor, so the
         # secondary defaults to the primary's HDMI-0 rather than HDMI-1.
         if self.multi:
-            default_hd = '0'
+            default_out = 'hdmi0'
         else:
-            default_hd = '0' if self.cam.port == 'cam0' else '1'
-        hd = str(self.output.get('hdmi_port', default_hd))
+            default_out = 'hdmi0' if self.cam.port == 'cam0' else 'hdmi1'
+        out = str(self.output.get('hdmi_port', default_out))
+
+        # Map legacy hdmi_port int values to output strings.
+        if out in ('0', '1'):
+            out = 'hdmi' + out
+
+        # When a DPI display (e.g. HyperPixel) is the GUI output, use
+        # --output dpi so cinepi-raw's DRM preview renders on the DPI
+        # display via the rp1-dpi DRM driver.
+        gui_cfg = _settings().get("gui_display", {})
+        if gui_cfg.get("fb_device") is not None:
+            out = 'dpi'
+            logging.info(
+                "[%s] DPI display detected; using --output dpi",
+                self.cam.port,
+            )
+
+        px, py = 94, 50
+        # For DPI displays the framebuffer is physically rotated 90°,
+        # so padding must be swapped: left/right fb padding becomes
+        # physical top/bottom, and top/bottom fb padding becomes
+        # physical left/right (where the GUI columns live).
+        if out == 'dpi':
+            px, py = 10, 94
+
+        # Compute preview window and lores dimensions from the
+        # (possibly swapped) padding values.
+        aw, ah = fw - 2*px, fh - 2*py
+        lh = min(720, ah)
+        lw = int(lh * aspect * anam)
+        if lw > aw:
+            lw, lh = aw, int(round(aw / (aspect * anam)))
+        self.redis_controller.set_value(ParameterKey.LORES_WIDTH.value, lw)
+        self.redis_controller.set_value(ParameterKey.LORES_HEIGHT.value, lh)
+        if (aw/ah) > aspect:
+            ph = ah; pw = int(ph * aspect)
+        else:
+            pw = aw; ph = int(pw / aspect)
+        ox, oy = (fw-pw)//2, (fh-ph)//2
+        # Dual-sensor: full padded area for the compositor canvas.
+        dox, doy, dpw, dph = px, py, aw, ah
 
         args = [
             # Select the physical sensor by its libcamera enumeration index.
@@ -468,7 +487,7 @@ class CinePiProcess(Thread):
             "--height", str(height),
             "--lores-width",  str(lw),
             "--lores-height", str(lh),
-            "--hdmi-port",    hd,
+            "--output",       out,
             "--rotation",     str(rot),
             "--hflip",        str(hf),
             "--vflip",        str(vf),

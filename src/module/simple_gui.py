@@ -1,10 +1,11 @@
 import os
+import struct
 import threading
 import time
 import wave
 from PIL import Image, ImageDraw, ImageFont
 from module.console_display import claim_console_for_framebuffer, release_console_to_text
-from module.framebuffer import Framebuffer, acquire_framebuffer
+from module.framebuffer import Framebuffer, acquire_any_framebuffer
 from module.config_loader import load_settings
 import subprocess
 import logging
@@ -102,6 +103,75 @@ def _calculate_preview_guide_rect(
     ]
 
 
+def _preview_inner_rect(frame_width, frame_height, sensor_width, sensor_height, anamorphic_factor=1.0):
+    """Return (x, y, w, h) of the lores preview area within the frame."""
+    aspect = sensor_width / sensor_height
+    aw = frame_width  - 2 * PREVIEW_PADDING_X
+    ah = frame_height - 2 * PREVIEW_PADDING_Y
+
+    if (aw / ah) > aspect:
+        ph = ah
+        pw = int(ph * aspect)
+    else:
+        pw = aw
+        ph = int(pw / aspect)
+    ox = (frame_width  - pw) // 2
+    oy = (frame_height - ph) // 2
+
+    lh = min(720, ah)
+    lw = int(lh * aspect * anamorphic_factor)
+    if lw > aw:
+        lw = aw
+        lh = int(round(aw / (aspect * anamorphic_factor)))
+
+    if lw * ph > pw * lh:
+        h = pw * lh // lw
+        y_off = (ph - h) // 2
+        w = pw
+        x_off = 0
+    else:
+        w = ph * lw // lh
+        x_off = (pw - w) // 2
+        h = ph
+        y_off = 0
+
+    return (ox + x_off, oy + y_off, w, h)
+
+
+_PREVIEW_SHM_PATH = "/dev/shm/cinepi-preview-rgb"
+_PREVIEW_HEADER_SIZE = 128
+_PREVIEW_BUF_STRIDE = 1920 * 1080 * 3  # matches MemPreviewState::MAX_WIDTH/HEIGHT
+
+
+def _read_preview_frame():
+    """Read the latest RGB frame from cinepi-raw's shared-memory preview
+    using double-buffering: cinepi-raw writes to the back buffer while we
+    read from the front buffer, so there is never a race.
+
+    Returns a PIL Image or None if no frame is available.
+    """
+    try:
+        with open(_PREVIEW_SHM_PATH, "rb") as f:
+            header = f.read(_PREVIEW_HEADER_SIZE)
+            if len(header) < _PREVIEW_HEADER_SIZE:
+                return None
+
+            front_buf, width, height = struct.unpack_from("<III", header, 0)
+            if width == 0 or height == 0:
+                return None
+
+            buf_size = width * height * 3  # actual frame byte count
+            buf_offset = _PREVIEW_HEADER_SIZE + front_buf * _PREVIEW_BUF_STRIDE  # fixed stride
+            f.seek(buf_offset)
+            rgb_data = f.read(buf_size)
+            if len(rgb_data) < buf_size:
+                return None
+
+            return Image.frombytes("RGB", (width, height), rgb_data)
+    except (FileNotFoundError, OSError, struct.error):
+        return None
+
+
 class SimpleGUI(threading.Thread):
     def __init__(self, 
                 redis_controller, 
@@ -137,6 +207,7 @@ class SimpleGUI(threading.Thread):
         self._restart_waiting_logged = False
         self._last_display_restart_ts = 0.0
         self.check_display(force=True)
+        self._fb_rotate_ccw = bool(self.settings.get("gui_display", {}).get("rotate_ccw", False))
 
         self.color_mode = "normal"  # Can be changed to "inverse" as needed
 
@@ -312,7 +383,8 @@ class SimpleGUI(threading.Thread):
         initial_probe = self._display_probe_count == 0
         self._display_probe_count += 1
         had_display = self.fb is not None
-        fb = acquire_framebuffer(0)
+        preferred = self.settings.get("gui_display", {}).get("fb_device")
+        fb = acquire_any_framebuffer(3, preferred=preferred)
 
         if fb is None:
             if initial_probe or had_display:
@@ -320,7 +392,7 @@ class SimpleGUI(threading.Thread):
                 self._pending_display_camera_restart = False
                 self._restart_waiting_logged = False
             if had_display:
-                logging.info("HDMI framebuffer unavailable; switching GUI to headless mode")
+                logging.info("Framebuffer unavailable; switching GUI to headless mode")
                 self.fb = None
                 self.disp_width = 0
                 self.disp_height = 0
@@ -339,13 +411,20 @@ class SimpleGUI(threading.Thread):
         self.fb = fb
         self.disp_width = disp_width
         self.disp_height = disp_height
+        # When the display is physically rotated 90°, swap drawing
+        # dimensions so the GUI is laid out for landscape.
+        if getattr(self, '_fb_rotate_ccw', False):
+            self.disp_width, self.disp_height = self.disp_height, self.disp_width
 
         if display_changed:
             requested_width = self.settings.get("hdmi_display", {}).get("width", fb.size[0])
             requested_height = self.settings.get("hdmi_display", {}).get("height", fb.size[1])
             claim_console_for_framebuffer()
+            is_dpi = fb.path != "/dev/fb0"
             logging.info(
-                "HDMI framebuffer ready. fb0=%sx%s (%sbpp), GUI=%sx%s",
+                "%s framebuffer ready. %s=%sx%s (%sbpp), GUI=%sx%s",
+                "DPI" if is_dpi else "HDMI",
+                fb.path,
                 fb.size[0],
                 fb.size[1],
                 fb.bits_per_pixel,
@@ -353,14 +432,16 @@ class SimpleGUI(threading.Thread):
                 self.disp_height,
             )
             if (self.disp_width, self.disp_height) != (requested_width, requested_height):
-                logging.warning(
-                    "Configured HDMI canvas %sx%s exceeds active framebuffer %sx%s; using the active framebuffer size",
+                logging.debug(
+                    "Configured display canvas %sx%s differs from active framebuffer %sx%s; using the active framebuffer size",
                     requested_width,
                     requested_height,
                     fb.size[0],
                     fb.size[1],
                 )
-            if not had_display and self._preview_restart_on_attach:
+        if is_dpi:
+            logging.info("DPI display active; preview will render on HyperPixel via rp1-dpi DRM")
+        if not had_display and self._preview_restart_on_attach:
                 self._pending_display_camera_restart = True
                 self._restart_waiting_logged = False
                 logging.info(
@@ -1587,9 +1668,9 @@ class SimpleGUI(threading.Thread):
         disp_width = self.disp_width or fb.size[0]
         disp_height = self.disp_height or fb.size[1]
 
-        image = Image.new("RGBA", fb.size)
+        image = Image.new("RGBA", (disp_width, disp_height))
         draw = ImageDraw.Draw(image)
-        draw.rectangle(((0, 0), fb.size), fill=self.current_background_color)
+        draw.rectangle(((0, 0), (disp_width, disp_height)), fill=self.current_background_color)
 
         # Draw left-hand labels and boxes dynamically
         left_bottom_y = self.draw_left_sections(draw, values)
@@ -1603,6 +1684,17 @@ class SimpleGUI(threading.Thread):
             )
         except (TypeError, ValueError):
             anamorphic_factor = 1.0
+
+        # Paste camera preview frame from SHM (if available)
+        preview_img = _read_preview_frame()
+        if preview_img is not None:
+            px, py, pw, ph = _preview_inner_rect(
+                disp_width, disp_height,
+                self.width, self.height,
+                anamorphic_factor,
+            )
+            resized = preview_img.resize((pw, ph), Image.LANCZOS)
+            image.paste(resized, (px, py))
 
         frame_width = disp_width
         frame_height = disp_height
@@ -1736,9 +1828,11 @@ class SimpleGUI(threading.Thread):
 
 
         try:
+            if getattr(self, '_fb_rotate_ccw', False):
+                image = image.rotate(-90, expand=True)
             fb.show(image)
         except (OSError, RuntimeError, ValueError) as exc:
-            logging.warning("Framebuffer write failed; detaching HDMI GUI until it returns: %s", exc)
+            logging.warning("Framebuffer write failed; detaching display GUI until it returns: %s", exc)
             if self.fb is fb:
                 self.fb = None
                 self.disp_width = 0

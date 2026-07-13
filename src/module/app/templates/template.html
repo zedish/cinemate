@@ -331,15 +331,6 @@
             socket.emit('take_full_res_photo', {count: 1});
         });
 
-        document.getElementById('stream-container').addEventListener('auxclick', function(e) {
-            if (e.button === 1) {
-                e.preventDefault();
-                const count = prompt('Number of full-res photos (default 1):', '1');
-                const n = parseInt(count, 10);
-                socket.emit('take_full_res_photo', {count: n > 0 ? n : 1});
-            }
-        });
-
         document.getElementById('stream-container').addEventListener('click', function() {
             socket.emit('container_tap');
         });
@@ -351,39 +342,23 @@
             socket.emit('take_photo', {count: n > 0 ? n : 1});
         });
 
-        socket.on('reload_stream', () => {
-            reloadStream();
+        document.getElementById('stream-container').addEventListener('auxclick', function(e) {
+            if (e.button === 1) {
+                e.preventDefault();
+                const count = prompt('Number of full-res photos (default 1):', '1');
+                const n = parseInt(count, 10);
+                socket.emit('take_full_res_photo', {count: n > 0 ? n : 1});
+            }
         });
 
-        let streamReloadTimers = [];
+        var streamReloadTimer = null;
 
-        function clearStreamReloadTimers() {
-            streamReloadTimers.forEach((timer) => clearTimeout(timer));
-            streamReloadTimers = [];
-        }
-
-        function reloadStream() {
-            const streamElement = document.getElementById('stream');
-            if (!streamElement) {
-                return;
-            }
-
-            const baseSrc = streamElement.dataset.streamBase || streamElement.src.split('?')[0];
-            if (!baseSrc) {
-                return;
-            }
-
-            streamElement.dataset.streamBase = baseSrc;
-            clearStreamReloadTimers();
-            streamElement.onload = clearStreamReloadTimers;
-            streamElement.src = '';
-            [350, 1200, 2500].forEach((delay) => {
-                const timer = setTimeout(() => {
-                    streamElement.src = `${baseSrc}?reload=${Date.now()}`;
-                }, delay);
-                streamReloadTimers.push(timer);
-            });
-        }
+        socket.on('reload_stream', () => {
+            if (streamReloadTimer) clearTimeout(streamReloadTimer);
+            streamReloadTimer = setTimeout(function() {
+                window.location.reload();
+            }, 4000);
+        });
 
         socket.on('reload_browser', () => {
             window.location.reload();

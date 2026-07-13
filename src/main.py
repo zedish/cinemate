@@ -30,6 +30,7 @@ from module.dmesg_monitor import DmesgMonitor
 from module.app import create_app
 from module.mediator import Mediator
 from module.serial_handler import SerialHandler
+from module.touch_handler import TouchController
 from module.cinepi_multi import CinePiManager as CinePi
 from module.i2c.i2c_oled import I2cOled
 from module.i2c.quad_rotary_controller import QuadRotaryController
@@ -39,7 +40,7 @@ from module.console_display import (
     hide_cursor,
     release_console_to_text,
 )
-from module.framebuffer import acquire_framebuffer
+from module.framebuffer import acquire_any_framebuffer
 
 # Constants
 MODULES_OUTPUT_TO_SERIAL = ['cinepi_controller']
@@ -463,8 +464,11 @@ def start_splash(text="THIS IS A COOL MACHINE"):
     t.start()
     return t, stop_event
 
-def graphic_splash(text="THIS IS A COOL MACHINE", image_path=None):
-    fb = acquire_framebuffer(0)
+def graphic_splash(text="THIS IS A COOL MACHINE", image_path=None, settings=None):
+    preferred = None
+    if settings:
+        preferred = settings.get("gui_display", {}).get("fb_device")
+    fb = acquire_any_framebuffer(3, preferred=preferred)
     if fb is None:
         logging.info("Framebuffer not ready. Skipping graphic splash")
         return None
@@ -660,7 +664,7 @@ def run_application(args, log_queue):
 
     fb_splash = None
     if show_welcome_message and not defer_startup_message_until_after_plymouth:
-        fb_splash = graphic_splash(welcome_text, welcome_image)
+        fb_splash = graphic_splash(welcome_text, welcome_image, settings)
         if fb_splash is None:
             splash_thread, splash_stop = start_splash(welcome_text)
             if splash_thread is not None:
@@ -837,7 +841,7 @@ def run_application(args, log_queue):
     if defer_startup_message_until_after_plymouth:
         wait_for_plymouth_to_quit()
         logging.info("Showing startup message after Plymouth handoff")
-        fb_splash = graphic_splash(welcome_text, welcome_image)
+        fb_splash = graphic_splash(welcome_text, welcome_image, settings)
         if fb_splash is None:
             splash_thread, splash_stop = start_splash(welcome_text)
         splash_visible_started_at = time.monotonic()
@@ -883,6 +887,8 @@ def run_application(args, log_queue):
         serial_handler=serial_handler,
         settings=settings,
     )
+
+    touch_controller = TouchController(cinepi_controller, settings=settings.get("touch", {}))
 
     if settings.get("i2c_oled", {}).get("enabled", False):
         i2c_oled = I2cOled(settings, redis_controller)
@@ -970,6 +976,8 @@ def run_application(args, log_queue):
             serial_handler.running = False
         join_thread(serial_handler, "SerialHandler")
 
+        if touch_controller:
+            touch_controller.stop()
         if i2c_oled:
             if hasattr(i2c_oled, "stop"):
                 i2c_oled.stop()

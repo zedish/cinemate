@@ -55,6 +55,10 @@
     "width": 1920,
     "height": 1080
   },
+  "gui_display": {
+    "fb_device": 1,
+    "rotate_ccw": true
+  },
   "preview": {
     "default_zoom": 1.0,
     "zoom_steps": [
@@ -191,5 +195,8 @@
       "tc_cam0",
       "RECORDING_TC"
     ]
+  },
+  "touch": {
+    "swap_xy": null
   }
 }
