@@ -11,9 +11,11 @@ Restart=on-failure
 RestartSec=5
 Environment=XDG_RUNTIME_DIR=/run/user/1000
 Environment=WLR_RENDERER=pixman
-Environment=WLR_BACKENDS=drm
+Environment=WLR_DRM_DEVICES=/dev/dri/card2
 ExecStartPre=/bin/mkdir -p /run/user/1000
 ExecStartPre=/bin/chown pi:pi /run/user/1000
+ExecStartPre=/usr/bin/bash -c 'for i in $$(seq 1 30); do stat /sys/class/drm/*-DPI-1/status 2>/dev/null && break; sleep 1; done'
+ExecStartPre=/usr/bin/bash -c 'for i in $$(seq 1 30); do curl -sf http://localhost:5000 >/dev/null && break; sleep 2; done'
 ExecStart=/usr/bin/wayfire -c /home/pi/.config/wayfire.ini
 
 [Install]

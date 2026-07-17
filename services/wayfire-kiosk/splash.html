@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=800,height=480">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body {
+  width:100%; height:100%;
+  overflow:hidden;
+  font-family:'Arial',sans-serif;
+  background:radial-gradient(ellipse at center,#1a1a2e 0%,#0a0a15 70%,#000 100%);
+  color:#fff;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  user-select:none;
+}
+.logo {
+  font-size:3.2rem;
+  font-weight:700;
+  letter-spacing:6px;
+  background:linear-gradient(135deg,#e94560,#ff6b6b);
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
+  background-clip:text;
+  margin-bottom:8px;
+  text-shadow:0 0 40px rgba(233,69,96,0.3);
+}
+.sub {
+  font-size:1rem;
+  color:#888;
+  letter-spacing:3px;
+  margin-bottom:30px;
+}
+.spinner {
+  width:36px; height:36px;
+  border:3px solid rgba(255,255,255,0.1);
+  border-top-color:#e94560;
+  border-radius:50%;
+  animation:spin .8s linear infinite;
+}
+@keyframes spin { to { transform:rotate(360deg); } }
+.status {
+  margin-top:16px;
+  font-size:0.85rem;
+  color:#555;
+}
+</style>
+</head>
+<body>
+<div class="logo">CINEMATE</div>
+<div class="sub">RECORDING STUDIO</div>
+<div class="spinner"></div>
+<div class="status" id="status">Starting...</div>
+<script>
+(function() {
+  var statusEl = document.getElementById('status');
+  var attempts = 0, timer;
+  function check() {
+    var s = document.createElement('script');
+    s.onload = function() { clearTimeout(timer); statusEl.textContent = 'Ready!'; location.href = 'http://localhost:5000'; };
+    s.onerror = retry;
+    timer = setTimeout(retry, 3000);
+    s.src = 'http://localhost:5000/health?' + Date.now();
+    document.head.appendChild(s);
+  }
+  function retry() {
+    attempts++;
+    statusEl.textContent = 'Starting' + '.'.repeat((attempts % 3) + 1);
+    setTimeout(check, 1200);
+  }
+  setTimeout(check, 500);
+})();
+</script>
+</body>
+</html>

@@ -4,7 +4,7 @@ CONFIG   ?= /home/pi/.config
 PI_USER  ?= pi
 
 CONFIG_FILE   = wayfire.ini
-LOADING_PAGE  = loading.html
+SPLASH_PAGE   = splash.html
 UDEV_RULE     = 99-goodix-hyperpixel-touch.rules
 SERVICE       = cinemate-kiosk.service
 
@@ -15,12 +15,12 @@ all:
 
 install:
 	install -m 644 $(CONFIG_FILE) $(CONFIG)/$(CONFIG_FILE)
-	install -m 644 $(LOADING_PAGE) $(CONFIG)/$(LOADING_PAGE)
+	install -m 644 $(SPLASH_PAGE) $(CONFIG)/$(SPLASH_PAGE)
 	install -m 644 $(SERVICE)     $(SYSDDIR)/$(SERVICE)
 	install -m 644 $(UDEV_RULE)   /etc/udev/rules.d/$(UDEV_RULE)
 	udevadm control --reload-rules
 	systemctl daemon-reload
-	@echo "Installed kiosk: config, loading page, udev rule, and service"
+	@echo "Installed kiosk: config, splash page, udev rule, and service"
 
 enable: install
 	systemctl enable  $(SERVICE)
@@ -42,10 +42,11 @@ status:
 
 clean: disable
 	- rm -f $(CONFIG)/$(CONFIG_FILE)
+	- rm -f $(CONFIG)/$(SPLASH_PAGE)
 	- rm -f $(SYSDDIR)/$(SERVICE)
 	- rm -f /etc/udev/rules.d/$(UDEV_RULE)
-	systemctl daemon-reload
 	udevadm control --reload-rules
+	systemctl daemon-reload
 	@echo "Removed kiosk files"
 
 uninstall: clean

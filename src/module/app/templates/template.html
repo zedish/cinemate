@@ -2,194 +2,256 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MJPEG Stream with Overlay</title>
+    <meta name="viewport" content="width=800, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cinemate</title>
     <style>
-        body {
-            margin: 0;
-            padding: 0;
+        * { margin:0; padding:0; box-sizing:border-box; }
+        html, body {
+            width: 100%; height: 100%;
+            overflow: hidden;
             font-family: 'Arial', sans-serif;
-            background-color: {{ background_color }};
+            background: {{ background_color }};
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
         }
-        .top-bar, .bottom-bar {
-            background-color: black;
-            font-size: 16px;
-            color: #fff;
-            padding: 10px;
+        .top-bar {
             display: flex;
-            justify-content: space-evenly;
             align-items: center;
-            gap: 10px;
+            background: rgba(0,0,0,0.85);
+            color: #fff;
+            padding: 4px 8px;
+            height: 34px;
+            gap: 6px;
+            font-size: 11px;
+            overflow: hidden;
+            white-space: nowrap;
         }
-        .bottom-bar > div {
-            flex: 1;
-            text-align: center;
-        }
-        .bottom-bar button {
-            flex: 0 0 auto;
-        }
-        .top-bar select, .bottom-bar select {
-            margin-left: 10px;
-            padding: 8px;
-            font-size: 16px;
+        .top-bar select {
+            font-size: 11px;
+            padding: 2px 4px;
             border: none;
-            background-color: #111;
+            background: #222;
             color: #fff;
-            border-radius: 5px;
+            border-radius: 3px;
             cursor: pointer;
+            max-width: 90px;
         }
-        .top-bar select:focus, .bottom-bar select:focus {
-            outline: none;
-        }
-        #resolution-select.resolution-switching {
-            color: #aaa;
-        }
-        #resolution-select.resolution-switching option {
-            color: #fff;
+        .top-bar select:focus { outline: none; }
+        .top-bar label { color: #aaa; margin-right: 2px; }
+        #resolution-select.resolution-switching { color: #888; }
+        .main-area {
+            display: flex;
+            height: calc(100% - 34px - 26px);
         }
         #stream-container {
-            background-color: black;
+            flex: 1;
             position: relative;
-            width: 100%;
-            height: 100%;
-            padding-bottom: 46.25%;
+            background: #000;
             overflow: hidden;
-            margin: 0;
         }
         #stream {
-            position: absolute;
-            top: 0;
-            left: 0;
             width: 100%;
             height: 100%;
             object-fit: contain;
-            background-color: black;
+            background: #000;
+        }
+        .right-buttons {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 14px;
+            padding: 8px;
+            background: rgba(0,0,0,0.5);
+            min-width: 80px;
+        }
+        .action-btn {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            border: 3px solid rgba(255,255,255,0.8);
+            background: rgba(255,255,255,0.15);
+            color: #fff;
+            font-size: 10px;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.1s, background 0.15s;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+            line-height: 1.2;
+        }
+        .action-btn:active {
+            transform: scale(0.92);
+        }
+        .action-btn.rec-btn {
+            border-color: #ff3333;
+            background: rgba(255,50,50,0.2);
+        }
+        .action-btn.rec-btn.active {
+            background: rgba(255,0,0,0.6);
+            border-color: #ff0000;
+        }
+        .action-btn.rec-btn.active::before {
+            content: '';
+            display: block;
+            width: 18px; height: 18px;
+            border-radius: 3px;
+            background: #ff0000;
+            margin-bottom: 2px;
+        }
+        .action-btn.rec-btn::before {
+            content: '';
+            display: block;
+            width: 18px; height: 18px;
+            border-radius: 50%;
+            background: #ff3333;
+            margin-bottom: 2px;
+        }
+        .icon-btn::before {
+            content: '';
+            display: block;
+            width: 20px; height: 20px;
+            background: #fff;
+            margin-bottom: 2px;
+        }
+        .photo-btn::before {
+            -webkit-mask: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><circle cx='12' cy='12' r='10' fill='white'/><circle cx='12' cy='12' r='4' fill='black'/></svg>") center/contain no-repeat;
+            mask: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><circle cx='12' cy='12' r='10' fill='white'/><circle cx='12' cy='12' r='4' fill='black'/></svg>") center/contain no-repeat;
+            background: #fff;
+        }
+        .fullres-btn::before {
+            -webkit-mask: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm2 4v10h10V7H7z' fill='white'/></svg>") center/contain no-repeat;
+            mask: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm2 4v10h10V7H7z' fill='white'/></svg>") center/contain no-repeat;
+            background: #fff;
+        }
+        .bottom-bar {
+            display: flex;
+            align-items: center;
+            background: rgba(0,0,0,0.8);
+            color: #ccc;
+            padding: 2px 8px;
+            height: 26px;
+            font-size: 10px;
+            gap: 10px;
+            overflow: hidden;
+        }
+        .bottom-bar span { white-space: nowrap; }
+        #touch-dot {
+            position:fixed;width:30px;height:30px;border-radius:50%;background:rgba(255,0,0,0.6);pointer-events:none;transform:translate(-50%,-50%);display:none;z-index:99999;
+        }
+        #touch-log {
+            position:fixed;bottom:26px;left:0;background:rgba(0,0,0,0.8);color:#0f0;font-size:10px;padding:2px 6px;z-index:99999;pointer-events:none;
         }
     </style>
 </head>
 <body>
     <div class="top-bar">
-        <div>FPS:
-            <select id="fps-select">
-                {% for fps_value in fps_values %}
-                    <option value="{{ fps_value }}" {% if fps_value == current_fps %}selected{% endif %}>{{ fps_value }}</option>
-                {% endfor %}
-            </select>
+        <div><label>FPS</label><select id="fps-select">
+            {% for fps_value in fps_values %}
+                <option value="{{ fps_value }}" {% if fps_value == current_fps %}selected{% endif %}>{{ fps_value }}</option>
+            {% endfor %}
+        </select></div>
+        <div><label>SA</label><select id="shutter-speed-select">
+            {% for shutter_speed_value in shutter_speed_values %}
+                <option value="{{ shutter_speed_value }}" {% if shutter_speed_value == current_shutter_a %}selected{% endif %}>{{ shutter_speed_value }}</option>
+            {% endfor %}
+        </select></div>
+        <div><label>ISO</label><select id="iso-select">
+            {% for iso_value in iso_values %}
+                <option value="{{ iso_value }}" {% if iso_value == current_iso %}selected{% endif %}>{{ iso_value }}</option>
+            {% endfor %}
+        </select></div>
+        <div><label>WB</label><select id="wb-select">
+            {% for wb_value in wb_steps %}
+                <option value="{{ wb_value }}" {% if wb_value == current_wb %}selected{% endif %}>{{ wb_value }}K</option>
+            {% endfor %}
+        </select></div>
+        <div><label>EXP</label><span id="exposure-time" style="color:#fff;font-size:10px;"></span></div>
+        <div style="margin-left:auto;"><label>RES</label><select id="resolution-select">
+            {% for resolution in resolution_values %}
+                <option value="{{ resolution.mode }}">{{ resolution.width }}x{{ resolution.height }}</option>
+            {% endfor %}
+        </select></div>
+    </div>
+
+    <div class="main-area">
+        <div id="stream-container">
+            <img id="stream" src="{{ stream_url }}" alt="Stream">
         </div>
-        <div>Shutter Angle:
-            <select id="shutter-speed-select">
-                {% for shutter_speed_value in shutter_speed_values %}
-                    <option value="{{ shutter_speed_value }}" {% if shutter_speed_value == current_shutter_a %}selected{% endif %}>{{ shutter_speed_value }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div>Exposure: <span id="exposure-time"></span></div>
-        <div>ISO:
-            <select id="iso-select">
-                {% for iso_value in iso_values %}
-                    <option value="{{ iso_value }}" {% if iso_value == current_iso %}selected{% endif %}>{{ iso_value }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div>WB:
-            <select id="wb-select">
-                {% for wb_value in wb_steps %}
-                    <option value="{{ wb_value }}" {% if wb_value == current_wb %}selected{% endif %}>{{ wb_value }}K</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div>Resolution:
-            <select id="resolution-select">
-                {% for resolution in resolution_values %}
-                    <option value="{{ resolution.mode }}">{{ resolution.width }}x{{ resolution.height }}</option>
-                {% endfor %}
-            </select>
+        <div class="right-buttons">
+            <button class="action-btn rec-btn" id="rec-btn">REC</button>
+            <button class="action-btn photo-btn" id="photo-btn">PHOTO</button>
+            <button class="action-btn fullres-btn" id="fullres-btn">FULL</button>
         </div>
     </div>
-    <div id="stream-container">
-        <img id="stream" src="{{ stream_url }}" alt="Stream">
-    </div>
+
     <div class="bottom-bar">
-        <button id="unmount-btn">Unmount</button>
-        <button id="photo-btn">Photo</button>
-        <button id="fullres-btn">Full Res</button>
-        <div><span id="disk-space"></span></div>
-        <div>WRITE: <span id="write-speed"></span></div>
-        <div>FRAMES BUFFERED: <span id="buffer-used"></span></div>
-        <div>BUFFER SIZE: <span id="buffer-size"></span></div>
-        <div>CPU: <span id="cpu-load"></span></div>
-        <div>RAM: <span id="ram-load"></span></div>
-        <div>TEMP: <span id="cpu-temp"></span></div>
-        <button id="fullscreen-btn" style="margin-left:auto;">Enter Fullscreen</button>
+        <span>DS: <span id="disk-space">-</span></span>
+        <span>WR: <span id="write-speed">-</span></span>
+        <span>BUF: <span id="buffer-used">-</span>/<span id="buffer-size">-</span></span>
+        <span>CPU: <span id="cpu-load">-</span>%</span>
+        <span>RAM: <span id="ram-load">-</span>%</span>
+        <span>TEMP: <span id="cpu-temp">-</span></span>
+        <span style="margin-left:auto;"><button id="fullscreen-btn" style="background:none;border:1px solid #666;color:#ccc;border-radius:3px;padding:1px 6px;font-size:10px;cursor:pointer;">FS</button></span>
     </div>
+
+    <div id="touch-dot"></div>
+    <div id="touch-log"></div>
+
     <script src="{{ url_for('static', filename='js/socket.io.min.js') }}"></script>
     <script>
         const socket = io();
 
         function updateShutterSpeedOptions(shutter_a_steps, current_shutter_a) {
-            const shutterSpeedSelect = document.getElementById('shutter-speed-select');
-            shutterSpeedSelect.innerHTML = '';
-            shutter_a_steps.forEach(angle => {
-                const option = document.createElement('option');
-                option.value = angle;
-                option.textContent = angle;
-                if (angle == current_shutter_a) {
-                    option.selected = true;
-                }
-                shutterSpeedSelect.appendChild(option);
+            const s = document.getElementById('shutter-speed-select');
+            s.innerHTML = '';
+            shutter_a_steps.forEach(function(a) {
+                const o = document.createElement('option');
+                o.value = a; o.textContent = a;
+                if (a == current_shutter_a) o.selected = true;
+                s.appendChild(o);
             });
         }
-
         function updateFpsOptions(fps_steps, current_fps) {
-            const fpsSelect = document.getElementById('fps-select');
-            fpsSelect.innerHTML = '';
-            fps_steps.forEach(fps => {
-                const option = document.createElement('option');
-                option.value = fps;
-                option.textContent = fps;
-                if (fps == current_fps) {
-                    option.selected = true;
-                }
-                fpsSelect.appendChild(option);
+            const s = document.getElementById('fps-select');
+            s.innerHTML = '';
+            fps_steps.forEach(function(v) {
+                const o = document.createElement('option');
+                o.value = v; o.textContent = v;
+                if (v == current_fps) o.selected = true;
+                s.appendChild(o);
             });
         }
-
         function updateWBOptions(wb_steps, current_wb) {
-            const wbSelect = document.getElementById('wb-select');
-            wbSelect.innerHTML = '';
-            wb_steps.forEach(wb => {
-                const option = document.createElement('option');
-                option.value = wb;
-                option.textContent = `${wb}K`;
-                if (wb == current_wb) {
-                    option.selected = true;
-                }
-                wbSelect.appendChild(option);
+            const s = document.getElementById('wb-select');
+            s.innerHTML = '';
+            wb_steps.forEach(function(v) {
+                const o = document.createElement('option');
+                o.value = v; o.textContent = v+'K';
+                if (v == current_wb) o.selected = true;
+                s.appendChild(o);
             });
         }
-
-        function isSwitching(value) {
-            const normalized = String(value).trim().toLowerCase();
-            return value === true || normalized === '1' || normalized === 'true';
+        function isSwitching(v) {
+            return v === true || String(v).trim().toLowerCase() === '1';
         }
-
         function updateResolutionSelection(mode, switching) {
-            const resolutionSelect = document.getElementById('resolution-select');
-            if (!resolutionSelect) {
-                return;
-            }
-            if (mode !== undefined && mode !== null) {
-                resolutionSelect.value = mode;
-            }
-            resolutionSelect.classList.toggle('resolution-switching', isSwitching(switching));
+            const s = document.getElementById('resolution-select');
+            if (!s) return;
+            if (mode !== undefined && mode !== null) s.value = mode;
+            s.classList.toggle('resolution-switching', isSwitching(switching));
         }
 
-        socket.on('initial_values', data => {
+        socket.on('initial_values', function(data) {
             document.getElementById('iso-select').value = data.iso;
             updateShutterSpeedOptions(data.shutter_a_steps, data.shutter_a);
             updateFpsOptions(data.fps_steps, data.fps);
             updateWBOptions(data.wb_steps, data.wb);
-
             document.body.style.backgroundColor = data.background_color;
             document.getElementById('disk-space').innerText = data.disk_space;
             document.getElementById('write-speed').innerText = data.write_speed;
@@ -199,134 +261,83 @@
             document.getElementById('ram-load').innerText = data.ram_load;
             document.getElementById('cpu-temp').innerText = data.cpu_temp;
             document.getElementById('exposure-time').innerText = data.exposure_time;
-            const resolutionSelect = document.getElementById('resolution-select');
-            resolutionSelect.innerHTML = '';
-            data.sensor_resolutions.forEach(res => {
-                const option = document.createElement('option');
-                option.value = res.mode;
-                option.textContent = res.resolution;
-                resolutionSelect.appendChild(option);
+            const rs = document.getElementById('resolution-select');
+            rs.innerHTML = '';
+            data.sensor_resolutions.forEach(function(r) {
+                const o = document.createElement('option');
+                o.value = r.mode; o.textContent = r.resolution;
+                rs.appendChild(o);
             });
             updateResolutionSelection(data.selected_resolution_mode, data.resolution_switching);
         });
 
-        socket.on('parameter_change', data => {
-            if (data.iso !== undefined) {
-                document.getElementById('iso-select').value = data.iso;
-            }
+        socket.on('parameter_change', function(data) {
+            if (data.iso !== undefined) document.getElementById('iso-select').value = data.iso;
             if (data.shutter_a !== undefined) {
-                const currentShutter = data.shutter_a;
-                document.getElementById('shutter-speed-select').value = currentShutter;
-                socket.emit('request_shutter_a_steps', {}, (response) => {
-                    updateShutterSpeedOptions(response.shutter_a_steps, currentShutter);
+                document.getElementById('shutter-speed-select').value = data.shutter_a;
+                socket.emit('request_shutter_a_steps', {}, function(r) {
+                    updateShutterSpeedOptions(r.shutter_a_steps, data.shutter_a);
                 });
             }
-            if (data.fps !== undefined) {
-                document.getElementById('fps-select').value = data.fps;
-            }
-            if (data.wb !== undefined) {
-                document.getElementById('wb-select').value = data.wb;
-            }
-            if (data.selected_resolution_mode !== undefined) {
-                updateResolutionSelection(data.selected_resolution_mode, data.resolution_switching);
-            }
-            if (data.sensor_mode !== undefined) {
-                updateResolutionSelection(data.sensor_mode, data.resolution_switching);
-            }
-            if (data.resolution_switching !== undefined) {
-                updateResolutionSelection(data.selected_resolution_mode, data.resolution_switching);
-            }
-            if (data.buffer !== undefined) {
-                document.getElementById('buffer-used').innerText = data.buffer;
-            }
+            if (data.fps !== undefined) document.getElementById('fps-select').value = data.fps;
+            if (data.wb !== undefined) document.getElementById('wb-select').value = data.wb;
+            if (data.selected_resolution_mode !== undefined) updateResolutionSelection(data.selected_resolution_mode, data.resolution_switching);
+            if (data.sensor_mode !== undefined) updateResolutionSelection(data.sensor_mode, data.resolution_switching);
+            if (data.resolution_switching !== undefined) updateResolutionSelection(data.selected_resolution_mode, data.resolution_switching);
+            if (data.buffer !== undefined) document.getElementById('buffer-used').innerText = data.buffer;
         });
 
-        socket.on('resolution_change', data => {
-            if (data.sensor_mode !== undefined) {
-                updateResolutionSelection(data.sensor_mode, data.resolution_switching);
-            }
+        socket.on('resolution_change', function(data) {
+            if (data.sensor_mode !== undefined) updateResolutionSelection(data.sensor_mode, data.resolution_switching);
         });
-
-        socket.on('shutter_a_update', data => {
+        socket.on('shutter_a_update', function(data) {
             updateShutterSpeedOptions(data.shutter_a_steps, data.current_shutter_a);
         });
-
-        socket.on('fps_update', data => {
+        socket.on('fps_update', function(data) {
             updateFpsOptions(data.fps_steps, data.fps_actual);
         });
-
-        socket.on('gui_data_change', data => {
-            if (data.disk_space !== undefined) {
-                document.getElementById('disk-space').innerText = data.disk_space;
-            }
-            if (data.write_speed !== undefined) {
-                document.getElementById('write-speed').innerText = data.write_speed;
-            }
-            if (data.buffer_used !== undefined) {
-                document.getElementById('buffer-used').innerText = data.buffer_used;
-            }
-            if (data.buffer_size !== undefined) {
-                document.getElementById('buffer-size').innerText = data.buffer_size;
-            }
-            if (data.cpu_load !== undefined) {
-                document.getElementById('cpu-load').innerText = data.cpu_load;
-            }
-            if (data.ram_load !== undefined) {
-                document.getElementById('ram-load').innerText = data.ram_load;
-            }
-            if (data.cpu_temp !== undefined) {
-                document.getElementById('cpu-temp').innerText = data.cpu_temp;
-            }
-            if (data.exposure_time !== undefined) {
-                document.getElementById('exposure-time').innerText = data.exposure_time;
-            }
+        socket.on('gui_data_change', function(data) {
+            if (data.disk_space !== undefined) document.getElementById('disk-space').innerText = data.disk_space;
+            if (data.write_speed !== undefined) document.getElementById('write-speed').innerText = data.write_speed;
+            if (data.buffer_used !== undefined) document.getElementById('buffer-used').innerText = data.buffer_used;
+            if (data.buffer_size !== undefined) document.getElementById('buffer-size').innerText = data.buffer_size;
+            if (data.cpu_load !== undefined) document.getElementById('cpu-load').innerText = data.cpu_load;
+            if (data.ram_load !== undefined) document.getElementById('ram-load').innerText = data.ram_load;
+            if (data.cpu_temp !== undefined) document.getElementById('cpu-temp').innerText = data.cpu_temp;
+            if (data.exposure_time !== undefined) document.getElementById('exposure-time').innerText = data.exposure_time;
         });
 
-        socket.on('background_color_change', data => {
-            updateBackgroundColor(data.background_color);
+        socket.on('background_color_change', function(data) {
+            document.body.style.backgroundColor = data.background_color;
         });
-
-        function updateBackgroundColor(color) {
-            document.body.style.backgroundColor = color;
-            const elementsToChange = document.querySelectorAll('*:not(button)');
-            elementsToChange.forEach(element => {
-                element.style.backgroundColor = color;
-            });
-        }
 
         document.getElementById('iso-select').addEventListener('change', function() {
-            const iso = this.value;
-            socket.emit('change_iso', { iso });
+            socket.emit('change_iso', { iso: this.value });
         });
-
         document.getElementById('shutter-speed-select').addEventListener('change', function() {
-            const shutterAngle = this.value;
-            socket.emit('change_shutter_a', { shutter_a: shutterAngle });
+            socket.emit('change_shutter_a', { shutter_a: this.value });
         });
-
         document.getElementById('fps-select').addEventListener('change', function() {
-            const fps = this.value;
-            socket.emit('change_fps', { fps });
+            socket.emit('change_fps', { fps: this.value });
         });
-
         document.getElementById('wb-select').addEventListener('change', function() {
-            const wb = this.value;
-            socket.emit('change_wb', { wb });
+            socket.emit('change_wb', { wb: this.value });
         });
-
         document.getElementById('resolution-select').addEventListener('change', function() {
-            const resolutionMode = this.value;
-            socket.emit('change_resolution', { mode: resolutionMode });
+            socket.emit('change_resolution', { mode: this.value });
         });
 
-        document.getElementById('unmount-btn').addEventListener('click', function() {
-            socket.emit('unmount');
+        var recBtn = document.getElementById('rec-btn');
+        recBtn.addEventListener('click', function() {
+            this.classList.toggle('active');
+            var isActive = this.classList.contains('active');
+            this.innerHTML = isActive ? 'STOP' : 'REC';
+            socket.emit('container_tap');
         });
 
         document.getElementById('photo-btn').addEventListener('click', function() {
             socket.emit('take_photo', {count: 1});
         });
-
         document.getElementById('fullres-btn').addEventListener('click', function() {
             socket.emit('take_full_res_photo', {count: 1});
         });
@@ -334,102 +345,66 @@
         document.getElementById('stream-container').addEventListener('auxclick', function(e) {
             if (e.button === 1) {
                 e.preventDefault();
-                const count = prompt('Number of full-res photos (default 1):', '1');
-                const n = parseInt(count, 10);
+                var n = parseInt(prompt('Full-res photos (default 1):', '1'), 10);
                 socket.emit('take_full_res_photo', {count: n > 0 ? n : 1});
             }
         });
-
-        document.getElementById('stream-container').addEventListener('click', function() {
-            socket.emit('container_tap');
-        });
-
         document.getElementById('stream-container').addEventListener('contextmenu', function(e) {
             e.preventDefault();
-            const count = prompt('Number of photos (default 1):', '1');
-            const n = parseInt(count, 10);
+            var n = parseInt(prompt('Photos (default 1):', '1'), 10);
             socket.emit('take_photo', {count: n > 0 ? n : 1});
         });
 
-        socket.on('reload_stream', () => {
-            reloadStream();
-        });
+        socket.on('reload_stream', function() { reloadStream(); });
 
-        let streamReloadTimers = [];
-
-        function clearStreamReloadTimers() {
-            streamReloadTimers.forEach((timer) => clearTimeout(timer));
-            streamReloadTimers = [];
-        }
-
+        var streamReloadTimers = [];
+        function clearStreamReloadTimers() { streamReloadTimers.forEach(function(t) { clearTimeout(t); }); streamReloadTimers = []; }
         function reloadStream() {
-            const streamElement = document.getElementById('stream');
-            if (!streamElement) {
-                return;
-            }
-
-            const baseSrc = streamElement.dataset.streamBase || streamElement.src.split('?')[0];
-            if (!baseSrc) {
-                return;
-            }
-
-            streamElement.dataset.streamBase = baseSrc;
+            var el = document.getElementById('stream');
+            if (!el) return;
+            var base = el.dataset.streamBase || el.src.split('?')[0];
+            if (!base) return;
+            el.dataset.streamBase = base;
             clearStreamReloadTimers();
-            streamElement.onload = clearStreamReloadTimers;
-            streamElement.src = '';
-            [350, 1200, 2500].forEach((delay) => {
-                const timer = setTimeout(() => {
-                    streamElement.src = `${baseSrc}?reload=${Date.now()}`;
-                }, delay);
-                streamReloadTimers.push(timer);
+            el.onload = clearStreamReloadTimers;
+            el.src = '';
+            [350, 1200, 2500].forEach(function(d) {
+                streamReloadTimers.push(setTimeout(function() { el.src = base+'?reload='+Date.now(); }, d));
             });
         }
 
-        socket.on('reload_browser', () => {
-            window.location.reload();
-        });
+        socket.on('reload_browser', function() { window.location.reload(); });
 
         function toggleFullScreen() {
-            const elem = document.documentElement;
+            var d = document.documentElement;
             if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-                if (elem.requestFullscreen) {
-                    elem.requestFullscreen();
-                } else if (elem.webkitRequestFullscreen) {
-                    elem.webkitRequestFullscreen();
-                }
+                if (d.requestFullscreen) d.requestFullscreen();
+                else if (d.webkitRequestFullscreen) d.webkitRequestFullscreen();
             } else {
-                if (document.exitFullscreen) {
-                    document.exitFullscreen();
-                } else if (document.webkitExitFullscreen) {
-                    document.webkitExitFullscreen();
-                }
+                if (document.exitFullscreen) document.exitFullscreen();
+                else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
             }
         }
-
         document.getElementById('fullscreen-btn').addEventListener('click', function() {
             toggleFullScreen();
-            updateFullscreenButton();
+            updateFSBtn();
         });
-
-        function updateFullscreenButton() {
-            const isInFullScreen = document.fullscreenElement !== null || document.webkitFullscreenElement !== null;
-            document.getElementById('fullscreen-btn').textContent = isInFullScreen ? 'Exit Fullscreen' : 'Enter Fullscreen';
+        document.getElementById('fullscreen-btn').addEventListener('touchstart', function(e) {
+            e.preventDefault();
+            toggleFullScreen();
+            updateFSBtn();
+        });
+        function updateFSBtn() {
+            var fs = document.fullscreenElement !== null || document.webkitFullscreenElement !== null;
+            document.getElementById('fullscreen-btn').textContent = fs ? 'EXIT' : 'FS';
         }
 
-        document.getElementById('fullscreen-btn').addEventListener('touchstart', function(event) {
-            event.preventDefault();
-            toggleFullScreen();
-            updateFullscreenButton();
-        });
-    </script>
-    <div id="touch-dot" style="position:fixed;width:30px;height:30px;border-radius:50%;background:rgba(255,0,0,0.6);pointer-events:none;transform:translate(-50%,-50%);display:none;z-index:99999;"></div>
-    <div id="touch-log" style="position:fixed;bottom:0;left:0;background:rgba(0,0,0,0.8);color:#0f0;font-size:12px;padding:4px 8px;z-index:99999;pointer-events:none;"></div>
-    <script>
         var dot = document.getElementById('touch-dot');
         var tlog = document.getElementById('touch-log');
         function showTouch(e) {
-            var x = e.clientX || e.touches[0].clientX;
-            var y = e.clientY || e.touches[0].clientY;
+            var x = e.clientX || (e.touches && e.touches[0].clientX);
+            var y = e.clientY || (e.touches && e.touches[0].clientY);
+            if (x === undefined) return;
             dot.style.left = x + 'px';
             dot.style.top = y + 'px';
             dot.style.display = 'block';

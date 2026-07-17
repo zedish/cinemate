@@ -1,7 +1,12 @@
-from flask import Blueprint, current_app, jsonify, request, render_template
+from flask import Blueprint, current_app, jsonify, request, render_template, Response
 from module.redis_controller import ParameterKey
 
 main_routes = Blueprint('main', __name__)
+
+
+@main_routes.route('/health')
+def health():
+    return Response('// ok', mimetype='application/javascript')
 
 
 @main_routes.route('/loading')

@@ -25,6 +25,8 @@ Group=pi
 SyslogIdentifier=cinemate-autostart
 LogRateLimitIntervalSec=0
 LimitRTPRIO=80
+CapabilityBoundingSet=CAP_SYS_ADMIN
+AmbientCapabilities=CAP_SYS_ADMIN
 TimeoutStopSec=5
 KillSignal=SIGINT
 
