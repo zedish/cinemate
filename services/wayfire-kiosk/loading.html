@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=800,height=480">
+<style>
+body { margin:0; background:#000; display:flex; justify-content:center; align-items:center; height:100vh; color:#fff; font-family:sans-serif; font-size:2rem; }
+</style>
+<body>
+<div>Connecting...</div>
+<script>
+(function check() {
+  fetch('http://localhost:5000').then(r => { if(r.ok) location.href='http://localhost:5000'; else setTimeout(check,500); }).catch(() => setTimeout(check,500));
+})();
+</script>
+</body>
+</html>

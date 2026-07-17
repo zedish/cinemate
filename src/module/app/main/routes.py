@@ -3,6 +3,11 @@ from module.redis_controller import ParameterKey
 
 main_routes = Blueprint('main', __name__)
 
+
+@main_routes.route('/loading')
+def loading():
+    return render_template('loading.html')
+
 @main_routes.route('/')
 def index():
     redis_controller = current_app.config['REDIS_CONTROLLER']
