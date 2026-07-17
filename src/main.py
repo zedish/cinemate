@@ -896,26 +896,11 @@ def run_application(args, log_queue):
 
     # Start Streaming if a network connection is available
     stream = None
-    kiosk_process = None
     if network_available():
         app, socketio = create_app(redis_controller, cinepi_controller, simple_gui, sensor_detect)
         stream = threading.Thread(target=socketio.run, args=(app,), kwargs={'host': '0.0.0.0', 'port': 5000, 'allow_unsafe_werkzeug': True})
         stream.start()
         logging.info("Stream module loaded")
-
-        # Launch fullscreen web kiosk on the DPI display
-        if getattr(args, 'kiosk', False):
-            import subprocess
-            kiosk_script = os.path.join(os.path.dirname(__file__), 'module', 'webkiosk.py')
-            kiosk_args = [sys.executable, kiosk_script,
-                          '--url', 'http://localhost:5000',
-                          '--touch-transform']
-            logging.info("Launching web kiosk: %s", ' '.join(kiosk_args))
-            kiosk_process = subprocess.Popen(
-                kiosk_args,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
     else:
         logging.error("No network connection found. Stream module not loaded")
 
@@ -1004,17 +989,6 @@ def run_application(args, log_queue):
         if timekeeper and hasattr(timekeeper, "stop"):
             timekeeper.stop()
 
-        if kiosk_process:
-            logging.info("Stopping web kiosk...")
-            kiosk_process.terminate()
-            try:
-                kiosk_process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                logging.warning("kiosk did not stop in 5s, killing")
-                kiosk_process.kill()
-                kiosk_process.wait()
-            logging.info("Web kiosk stopped")
-
         if not shutdown_in_progress and not gui_stopped:
             release_console_to_text()
 
@@ -1044,8 +1018,6 @@ def main():
 
     parser = argparse.ArgumentParser(description="Run the CinePi application.")
     parser.add_argument("-debug", action="store_true", help="Enable debug logging level.")
-    parser.add_argument("--kiosk", action="store_true",
-                        help="Launch fullscreen web UI on the DPI display.")
     args = parser.parse_args()
 
     _, log_queue = setup_logging(args.debug)

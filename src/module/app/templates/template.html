@@ -422,5 +422,23 @@
             updateFullscreenButton();
         });
     </script>
+    <div id="touch-dot" style="position:fixed;width:30px;height:30px;border-radius:50%;background:rgba(255,0,0,0.6);pointer-events:none;transform:translate(-50%,-50%);display:none;z-index:99999;"></div>
+    <div id="touch-log" style="position:fixed;bottom:0;left:0;background:rgba(0,0,0,0.8);color:#0f0;font-size:12px;padding:4px 8px;z-index:99999;pointer-events:none;"></div>
+    <script>
+        var dot = document.getElementById('touch-dot');
+        var tlog = document.getElementById('touch-log');
+        function showTouch(e) {
+            var x = e.clientX || e.touches[0].clientX;
+            var y = e.clientY || e.touches[0].clientY;
+            dot.style.left = x + 'px';
+            dot.style.top = y + 'px';
+            dot.style.display = 'block';
+            clearTimeout(dot._timer);
+            dot._timer = setTimeout(function() { dot.style.display = 'none'; }, 2000);
+            tlog.textContent = 'x:' + Math.round(x) + ' y:' + Math.round(y);
+        }
+        document.addEventListener('pointerdown', showTouch);
+        document.addEventListener('touchstart', showTouch);
+    </script>
 </body>
 </html>

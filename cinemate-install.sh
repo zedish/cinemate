@@ -48,6 +48,7 @@ ENABLE_WIFI_HOTSPOT_SERVICE="${ENABLE_WIFI_HOTSPOT_SERVICE:-1}"
 ENABLE_REDIS_LOG_MAINTENANCE_SERVICE="${ENABLE_REDIS_LOG_MAINTENANCE_SERVICE:-1}"
 ENABLE_AUTOSTART="${ENABLE_AUTOSTART:-1}"
 START_AUTOSTART_NOW="${START_AUTOSTART_NOW:-0}"
+ENABLE_KIOSK="${ENABLE_KIOSK:-0}"
 RUN_REBOOT="${RUN_REBOOT:-0}"
 UPDATE_EXISTING_REPOS="${UPDATE_EXISTING_REPOS:-1}"
 SUPPORTED_OS_CODENAME="${SUPPORTED_OS_CODENAME:-bookworm}"
@@ -316,7 +317,7 @@ print_configuration_summary() {
     detail "Libcamera: $LIBCAMERA_REPO_URL @ $LIBCAMERA_REPO_REF"
     detail "Hotspot: $HOTSPOT_NAME (enabled=$HOTSPOT_ENABLED)"
     detail "Optional features: lgpio=$INSTALL_ALT_GPIO_BACKEND console_font=$INSTALL_CONSOLE_FONT console_autologin=$ENABLE_CONSOLE_AUTOLOGIN pishrink=$INSTALL_PISHRINK plymouth=$INSTALL_PLYMOUTH imx283_driver=$INSTALL_IMX283_DRIVER imx585_driver=$INSTALL_IMX585_DRIVER ir_filter=$INSTALL_IR_FILTER_HELPER"
-    detail "Services: support=$ENABLE_SUPPORT_SERVICES storage=$ENABLE_STORAGE_AUTOMOUNT_SERVICE wifi=$ENABLE_WIFI_HOTSPOT_SERVICE redis_log=$ENABLE_REDIS_LOG_MAINTENANCE_SERVICE autostart=$ENABLE_AUTOSTART start_now=$START_AUTOSTART_NOW"
+    detail "Services: support=$ENABLE_SUPPORT_SERVICES storage=$ENABLE_STORAGE_AUTOMOUNT_SERVICE wifi=$ENABLE_WIFI_HOTSPOT_SERVICE redis_log=$ENABLE_REDIS_LOG_MAINTENANCE_SERVICE autostart=$ENABLE_AUTOSTART start_now=$START_AUTOSTART_NOW kiosk=$ENABLE_KIOSK"
 }
 
 is_commitish_ref() {
@@ -1580,6 +1581,22 @@ install_cinemate_services() {
         fi
     else
         detail "Skipping Cinemate autostart service"
+    fi
+
+    if is_true "$ENABLE_KIOSK"; then
+        section "Installing Wayfire kiosk"
+        log "Installing wayfire and wlr-randr"
+        sudo apt-get install -y wayfire wlr-randr
+
+        log "Removing stale HyperPixel udev rule from HyperPixel package"
+        sudo rm -f /etc/udev/rules.d/99-hyperpixel-touch.rules
+
+        log "Installing kiosk udev rule, wayfire config, and systemd service"
+        sudo make -C "$CINEMATE_SOURCE_DIR/services" enable-wayfire-kiosk
+
+        log "Kiosk enabled for next boot"
+    else
+        detail "Skipping Wayfire kiosk (set ENABLE_KIOSK=1 to enable)"
     fi
 }
 
